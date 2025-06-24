@@ -36,6 +36,7 @@ import org.eclipse.edc.mvd.model.TrustedParticipantsResponse;
 import org.eclipse.edc.mvd.service.DataExchangeQueueManager;
 import org.eclipse.edc.mvd.util.HashUtil;
 import org.eclipse.edc.spi.monitor.Monitor;
+import org.eclipse.edc.mvd.service.PushService;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -64,6 +65,7 @@ public class TrustedParticipantsWhitelistApiController {
   private final HttpClient httpClient;
   private final ObjectMapper objectMapper;
   private final DataExchangeQueueManager queueManager;
+  private final PushService pushService;
 
   /**
    * Constructor for TrustedParticipantsWhitelistApiController.
@@ -71,8 +73,9 @@ public class TrustedParticipantsWhitelistApiController {
    * @param monitor The monitor used for logging and monitoring.
    */
   @Inject
-  public TrustedParticipantsWhitelistApiController(Monitor monitor, ObjectMapper objectMapper, HttpClient httpClient) {
+  public TrustedParticipantsWhitelistApiController(Monitor monitor, PushService pushService, ObjectMapper objectMapper, HttpClient httpClient) {
     this.monitor = monitor;
+    this.pushService= pushService;
     this.trustedList = TrustedParticipantsWhitelist.getInstance();
     this.httpClient = httpClient;
     this.objectMapper = objectMapper;
@@ -216,6 +219,14 @@ public class TrustedParticipantsWhitelistApiController {
       HttpResponse<String> notificationResponse = httpClient.send(notificationRequest, HttpResponse.BodyHandlers.ofString());
       monitor.info("Notification sent to " + chosenDataTrustee.getName() + "; Response: " + notificationResponse.body());
 
+      if(chosenDataTrustee != null && !assets.isEmpty()) {
+        assets.forEach(id -> {
+          pushService.start(
+                  id,
+                  chosenDataTrustee.getUrl()
+          );
+        });
+      }
       return response.body();
     } catch (Exception e) {
       monitor.severe("Failed to initiate negotiation with provider-connector", e);
@@ -223,6 +234,9 @@ public class TrustedParticipantsWhitelistApiController {
     }
   }
 
+  private void pushAssets(Participant target, List<String> assets){
+    assets.forEach(id -> {pushService.start(id, target.getUrl());});
+  }
 
   /**
    * Receives a negotiation request from another participant, matches trusted

@@ -1,11 +1,13 @@
 package org.eclipse.edc.mvd.service;
 
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.eclipse.edc.mvd.model.DataExchangeEntry;
 import org.eclipse.edc.mvd.model.DataExchangeState;
 import org.eclipse.edc.mvd.model.Participant;
 import org.eclipse.edc.mvd.context.ExchangeContext;
 
+import org.eclipse.edc.mvd.model.ServiceDescriptor;
 import org.eclipse.edc.spi.monitor.Monitor;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -148,6 +150,15 @@ public class DataExchangeQueueManager {
                         .GET()
                         .build();
 
+                String json = httpClient.send(req, HttpResponse.BodyHandlers.ofString()).body();
+                List<ServiceDescriptor> remote =
+                        objectMapper.readValue(json, new TypeReference<>(){});
+
+                // cache them locally so the UI can show a dropdown
+                remote.forEach(ServiceRegistry::add);
+
+                monitor.info("[ServiceSync] fetched " + remote.size()
+                        + " services from " + providerBase);
 
             } catch (Exception ex) {
                 monitor.warning("[ServiceSync] could not fetch services: " + ex.getMessage());
